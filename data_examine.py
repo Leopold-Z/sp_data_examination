@@ -339,11 +339,14 @@ def check_data_structure(data_list, name_set):
     signal = 1
     ir_set = set()
     for data in data_list:
-        if data.split("\\")[-1] in name_set:
-            print(f"{data} 命名规范。")
+        if arcpy.Describe(data).dataType == "RasterBand":
+            pass
         else:
-            output_info(f"{data} 命名不规范！")
-            ir_set.add(data.split("\\")[-1])
+            if data.split("\\")[-1] in name_set:
+                print(f"{data} 命名规范。")
+            else:
+                output_info(f"{data} 命名不规范！")
+                ir_set.add(data.split("\\")[-1])
     if ir_set:
         p_output_set_info = ", ".join(ir_set)
         output_info(f"命名不规范的图层为：{p_output_set_info}。")
