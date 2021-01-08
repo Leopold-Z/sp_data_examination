@@ -168,7 +168,7 @@ def get_structure_info(dir_path, ds_file_name=''):
             if line_count == 0:
                 line_count += 1
             if line_count > 0:
-                p_set.add(row[1])
+                p_set.add(row[0])
     return p_set
 
 def output_info(output_string, output_path = ""):
@@ -600,6 +600,7 @@ if __name__ == "__main__":
         check_signal.append(process_main(check, para_dict))
 
     output_info(f"\n检测/处理结束，状态：{check_signal}。")
+
 
     #tbd: topology check: No overlapping, No intersection
     #tbd: conversion to provincial standard database
