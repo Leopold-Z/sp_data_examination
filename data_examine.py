@@ -55,7 +55,7 @@ def get_target_gdb(dir_path):
     o_workspaces = get_workspaces(dir_path, "*", "FileGDB")
     p_workspaces = []
     for workspace in o_workspaces:
-        if not workspace.endswith("_flat.gdb"):
+        if not (workspace.endswith("_flat.gdb") or workspace.endswith("_conv.gdb")):
             p_workspaces.append(workspace)
     p_workspace = ""
     if len(p_workspaces) > 1:
@@ -170,6 +170,33 @@ def get_structure_info(dir_path, ds_file_name=''):
             if line_count > 0:
                 p_set.add(row[0])
     return p_set
+
+def get_conversion_info(dir_path, dc_file_name=""):
+    if dc_file_name == "":
+        dc_file_path = dir_path + "\\" + "data_conversion.csv"
+    else:
+        dc_file_path = dir_path + "\\" + dc_file_name
+
+    if not os.path.isfile(dc_file_path):
+        p_conversion_file_path = ""
+        while p_conversion_file_path == "":
+            print(">>>")
+            print("当前路径下不存在符合名称要求的数据格式转换文件，请重新输入名称（包括后缀）：")
+            input_cf_name = input()
+            dc_file_path = dir_path + "\\" + input_cf_name
+            if os.path.isfile(dc_file_path):
+                p_conversion_file_path = dc_file_path
+    
+    p_dict = dict()
+    with codecs.open(dc_file_path, encoding="utf-8") as csv_file:
+        csv_reader = csv.reader(csv_file)
+        line_count = 0
+        for row in csv_reader:
+            if line_count == 0:
+                line_count += 1
+            if line_count > 0:
+                p_dict[row[0]] = [row[2], row[3]]
+    return p_dict
 
 def output_info(output_string, output_path = ""):
     print(output_string)
@@ -354,6 +381,34 @@ def check_data_structure(data_list, name_set):
     else:
         output_info("所有图层皆规范命名。")
     return signal
+
+def converse_data_structure(dir_path, data_list, gdb, structure_dict):
+    gdb_name = gdb.split('\\')[-1].split(".")[0]
+    conv_gdb_path = dir_path + "\\" + gdb_name + "_conv.gdb"
+    if arcpy.Exists(conv_gdb_path):
+        sys.exit("该数据库已存在！")
+    else:
+        arcpy.CreateFileGDB_management(dir_path, gdb_name + "_conv")
+        output_info(f"转换输出数据库为：{conv_gdb_path}。")
+        for data in data_list:
+            if arcpy.Describe(data).dataType == "RasterBand":
+                pass
+            else:
+                if data.split("\\")[-1] in structure_dict.keys():
+                    if structure_dict[data.split("\\")[-1]][0] != "NA":
+                        to_name = structure_dict[data.split("\\")[-1]][0]
+                        to_alias = structure_dict[data.split("\\")[-1]][1]
+                        if arcpy.Describe(data).dataType == "RasterDataset":
+                            arcpy.Copy_management(data, conv_gdb_path + "\\" + to_name)
+                        else:
+                            arcpy.Copy_management(data, conv_gdb_path + "\\" + to_name)
+                            arcpy.AlterAliasName(conv_gdb_path + "\\" + to_name, to_alias)
+                        output_info(f"{data} 转换为 {conv_gdb_path}\\{to_name}")
+                    else:
+                        output_info(f"{data} 未进行转换！")
+                else:
+                    output_info(f"{data} 未进行转换！")
+    return 1
 
 def summarize_table_structure(data_list):
     signal = 1
@@ -569,15 +624,21 @@ def process_main(func_name, para_dict):
     elif func_name == '几何修正':
         p_signal = repair_geometry(para_dict['featureclass_list'], para_dict['dir'])
         return p_signal
+    elif func_name == '数据结构转换':
+        p_conversion_dict = get_conversion_info(para_dict['dir'], para_dict['conversion_file_name'])
+        p_signal = converse_data_structure(para_dict['dir'], para_dict['data_list'], \
+                                            para_dict['gdb'], p_conversion_dict)
+        sys.exit("数据结构转换完成，程序退出...")
     else:
         sys.exit("函数错误，退出检测！")
 
 if __name__ == "__main__":
 
     check_list = ["坐标系统", "几何", "数据范围", "规划范围", "数据结构", \
-                "数据表结构", "去除数据层级", "几何修正"]
+                "数据表结构", "去除数据层级", "几何修正", "数据结构转换"]
     admin_fc_name_list = ["行政区划_市级", "行政区划_县级", "行政区划_乡级", "行政区划_村级"]
-    structure_file_name = ""
+    structure_file_name = ''
+    conversion_file_name = ''
     admin_fc_name = ''
     check_signal = []
 
@@ -594,7 +655,7 @@ if __name__ == "__main__":
     p_region_fc = get_target_fc(p_gdb, "", admin_fc_name_list)
     para_dict = {'dir': dir_path,'gdb': p_gdb, 'data_list': p_data_list, 'featureclass_list': p_featureclass_list, \
         'region_fc': p_region_fc, 'admin_fc_name': admin_fc_name, 'admin_fc_name_list': admin_fc_name_list, \
-        'strcuture_file_name': structure_file_name}
+        'strcuture_file_name': structure_file_name, 'conversion_file_name': conversion_file_name}
     p_check_mode = check_mode(check_list)
 
     print("开始检测>>>\n")
